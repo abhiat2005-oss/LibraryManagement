@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Library Management System</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#172033;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}header{background:#1d4ed8;color:white;padding:26px 16px;text-align:center}
+header h1{margin:0 0 8px}header p{margin:0;color:#dbeafe}
+main{max-width:1100px;margin:24px auto;padding:0 16px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.card,.panel{background:white;border-radius:12px;padding:20px;box-shadow:0 4px 14px #0f172a0b}
+.card h3{font-size:14px;color:#64748b;margin:0 0 10px}.card p{font-size:30px;font-weight:bold;color:#1d4ed8;margin:0}
+.panel{margin-bottom:18px}h2{font-size:20px;margin:0 0 16px}
+form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px}
+input,button{font:inherit;padding:11px 12px;border-radius:7px}input{border:1px solid #cbd5e1;min-width:0;width:100%}
+button{border:0;background:#2563eb;color:white;cursor:pointer;font-weight:600}button:hover{filter:brightness(.93)}
+.search{margin-bottom:14px} .table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:650px}
+th,td{text-align:left;padding:13px;border-bottom:1px solid #e2e8f0}th{background:#eff6ff;color:#334155}
+.available{color:#15803d;font-weight:bold}.issued{color:#dc2626;font-weight:bold}
+.actions{display:flex;gap:6px}.actions button{padding:8px 10px;font-size:13px}.delete{background:#dc2626}
+#message{min-height:18px;color:#166534;font-size:14px}.empty{text-align:center;color:#64748b;padding:20px}
+footer{text-align:center;color:#64748b;font-size:13px;padding:10px 16px 28px}
+@media(max-width:720px){.stats{grid-template-columns:1fr}form{grid-template-columns:1fr}header h1{font-size:25px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 Library Management System</h1>
+  <p>Add, search, issue and return books in one place</p>
+</header>
+<main>
+  <section class="stats" aria-label="Library statistics">
+    <div class="card"><h3>Total Books</h3><p id="total">0</p></div>
+    <div class="card"><h3>Available Books</h3><p id="available">0</p></div>
+    <div class="card"><h3>Issued Books</h3><p id="issued">0</p></div>
+  </section>
+  <section class="panel">
+    <h2>Add a New Book</h2>
+    <form id="bookForm">
+      <input id="title" placeholder="Book title" aria-label="Book title" required>
+      <input id="author" placeholder="Author name" aria-label="Author name" required>
+      <input id="bookId" placeholder="Book ID (e.g. B001)" aria-label="Book ID" required>
+      <button type="submit">+ Add Book</button>
+    </form>
+    <p id="message" role="status"></p>
+  </section>
+  <section class="panel">
+    <h2>Book Collection</h2>
+    <input id="search" class="search" placeholder="Search by title, author or book ID..." aria-label="Search books">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Book ID</th><th>Title</th><th>Author</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="bookList"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer>Library Management System · Built with HTML, CSS and JavaScript</footer>
+<script>
+"use strict";
+const STORAGE_KEY = "libraryManagementBooks";
+let books = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  if (Array.isArray(saved)) books = saved;
+} catch (error) {
+  books = [];
+}
+const $ = id => document.getElementById(id);
+function saveBooks() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
+  } catch (error) {
+    $("message").textContent = "Could not save data in this browser.";
+  }
+}
+function renderBooks() {
+  const query = $("search").value.trim().toLowerCase();
+  const list = $("bookList");
+  list.replaceChildren();
+  const filtered = books.filter(book =>
+    [book.bookId, book.title, book.author].some(value =>
+      String(value).toLowerCase().includes(query)
+    )
+  );
+  for (const book of filtered) {
+    const row = document.createElement("tr");
+    function cell(text) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      row.appendChild(td);
+      return td;
+    }
+    cell(book.bookId);
+    cell(book.title);
+    cell(book.author);
+    const status = cell(book.issued ? "Issued" : "Available");
+    status.className = book.issued ? "issued" : "available";
+    const actionCell = cell("");
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const toggle = document.createElement("button");
+    toggle.textContent = book.issued ? "Return" : "Issue";
+    toggle.addEventListener("click", () => {
+      book.issued = !book.issued;
+      saveBooks();
+      renderBooks();
+      $("message").textContent = book.issued ? "Book issued." : "Book returned.";
+    });
+    const remove = document.createElement("button");
+    remove.textContent = "Delete";
+    remove.className = "delete";
+    remove.addEventListener("click", () => {
+      if (confirm("Delete this book?")) {
+        books = books.filter(item => item.id !== book.id);
+        saveBooks();
+        renderBooks();
+        $("message").textContent = "Book deleted.";
+      }
+    });
+    actions.append(toggle, remove);
+    actionCell.appendChild(actions);
+    list.appendChild(row);
+  }
+  if (filtered.length === 0) {
+    const row = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "empty";
+    td.textContent = query ? "No matching books found." : "No books yet. Add your first book above.";
+    row.appendChild(td);
+    list.appendChild(row);
+  }
+  $("total").textContent = books.length;
+  $("available").textContent = books.filter(book => !book.issued).length;
+  $("issued").textContent = books.filter(book => book.issued).length;
+}
+$("bookForm").addEventListener("submit", event => {
+  event.preventDefault();
+  const title = $("title").value.trim();
+  const author = $("author").value.trim();
+  const bookId = $("bookId").value.trim();
+  if (!title || !author || !bookId) return;
+  if (books.some(book => book.bookId.toLowerCase() === bookId.toLowerCase())) {
+    $("message").textContent = "That Book ID already exists. Please use a unique ID.";
+    return;
+  }
+  books.push({id: Date.now().toString() + Math.random().toString(16).slice(2), bookId, title, author, issued:false});
+  saveBooks();
+  renderBooks();
+  event.target.reset();
+  $("message").textContent = "Book added successfully!";
+});
+$("search").addEventListener("input", renderBooks);
+renderBooks();
+</script>
+</body>
+</html>
